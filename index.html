@@ -71,12 +71,13 @@ img,svg{display:block}
 .header{
   position:fixed;top:0;left:0;right:0;z-index:50;
   display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
-  padding:18px var(--gutter);transition:color .3s,background .3s, transform .5s var(--ease-out);
+  padding:18px var(--gutter);transition:color .3s, transform .5s var(--ease-out);
+  /* --hb ramps 0→1 over the first 90px of scroll, so the bar fades in instead of snapping */
+  background:rgb(238 237 233 / calc(var(--hb,0) * .94));
 }
 .header.is-hidden{transform:translateY(-100%)}
-.header.solid{background:rgba(238,237,233,.82);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
-.header.on-dark{color:#fff}
-.header.solid.on-dark{background:rgba(11,11,11,.78)}
+.header.solid{-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.header.on-dark{color:#fff;background:rgb(11 11 11 / calc(var(--hb,0) * .9))}
 .header.solid.on-dark .btn{background:#fff;color:var(--ink)}
 .menu-btn{display:flex;align-items:center;gap:10px;justify-self:start}
 .menu-btn__icon{display:grid;grid-template-columns:repeat(2,4px);gap:3px}
@@ -171,6 +172,10 @@ img,svg{display:block}
 .hero__word{font-size:clamp(28px,4.4vw,76px);opacity:0;transition:opacity .6s var(--ease)}
 .hero__word--r{text-align:right}
 .hero__word span{display:block}
+.hero__word:not(.hero__word--r) span{
+  opacity:var(--fade,1);
+  transform:translateY(calc((1 - var(--fade,1)) * -28px)) scale(calc(.94 + var(--fade,1) * .06));
+}
 /* outline text: fill with the ground colour painted over a doubled stroke hides the font's overlapping contours */
 .hero__word .out{color:var(--bg);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill}
 .hero__cardpos{position:relative;display:grid;place-items:center}
@@ -402,7 +407,7 @@ section{position:relative}
 @media (max-width:720px){
   .header__cta .btn{padding:0 12px;font-size:11px;letter-spacing:.04em}
   .header__cta .long,.header__cta .arr{display:none}
-  .hero{padding-top:84px}
+  .hero{padding-top:116px}
   .hero__stage{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;justify-items:center;text-align:center;gap:28px}
   .hero__word,.hero__word--r{text-align:center;font-size:clamp(28px,9vw,48px)}
   .hero .card{--w:min(78vw,340px)}
@@ -434,9 +439,8 @@ section{position:relative}
 @media (hover:none){
   body.ready .hero .card{animation:float 6s ease-in-out 2s infinite}
   .hero__tilt{transition:none;will-change:auto;transform-style:flat}
-  .header{transition:color .3s,background .3s}
-  .header.solid{background:rgba(238,237,233,.96);-webkit-backdrop-filter:none;backdrop-filter:none}
-  .header.solid.on-dark{background:rgba(11,11,11,.96)}
+  .header{transition:color .3s}
+  .header.solid{-webkit-backdrop-filter:none;backdrop-filter:none}
   .ph .card{transition:none}
 }
 @keyframes float{
@@ -861,7 +865,9 @@ section{position:relative}
   function onScroll() {
     const y = scrollY;
     if (!touch && Math.abs(y - lastY) > 6) header.classList.toggle('is-hidden', y > lastY && y > 200);
-    header.classList.toggle('solid', y > 80);
+    header.style.setProperty('--hb', Math.min(1, y / 90).toFixed(3));
+    header.classList.toggle('solid', y > 200);
+    heroFade(y);
     if (Math.abs(y - lastY) > 6 || y < 10) lastY = y;
     const mid = 30;
     header.classList.toggle('on-dark', darks.some(s => { const r = s.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; }));
@@ -874,6 +880,13 @@ section{position:relative}
   const heroCard = document.getElementById('heroCard');
   let rx = 0, ry = 0, sy = 0;
   const applyTilt = () => { tilt.style.transform = `translateY(${sy * .25}px) rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${sy * -.02}deg)`; };
+  // phone layout: the top headline sits right under the header, so it dissolves and drifts up
+  // evenly over the first ~90px instead of disappearing behind the bar
+  const heroTop = document.querySelector('.hero__word:not(.hero__word--r)');
+  function heroFade(y) {
+    const f = innerWidth <= 720 ? Math.max(0, 1 - y / 90) : 1;
+    heroTop.style.setProperty('--fade', f.toFixed(3));
+  }
   function heroScroll(y) { if (!touch && y < innerHeight * 1.2) { sy = y; applyTilt(); } }
   if (!reduce && matchMedia('(hover: hover)').matches) {
     addEventListener('pointermove', e => {
