@@ -433,6 +433,11 @@ section{position:relative}
 /* touch screens have no cursor tilt, so the hero card floats on its own */
 @media (hover:none){
   body.ready .hero .card{animation:float 6s ease-in-out 2s infinite}
+  .hero__tilt{transition:none;will-change:auto;transform-style:flat}
+  .header{transition:color .3s,background .3s}
+  .header.solid{background:rgba(238,237,233,.96);-webkit-backdrop-filter:none;backdrop-filter:none}
+  .header.solid.on-dark{background:rgba(11,11,11,.96)}
+  .ph .card{transition:none}
 }
 @keyframes float{
   0%,100%{transform:translateY(0) rotate(0)}
@@ -844,25 +849,32 @@ section{position:relative}
   /* ---------- header: hide on scroll down, invert over dark ---------- */
   const header = document.getElementById('header');
   const darks = [...document.querySelectorAll('.cards, .sec-dark, .final')];
-  let lastY = 0;
+  // touch screens: momentum scrolling and the collapsing address bar flip scroll direction constantly,
+  // so the header stays put and the hero card ignores scroll there
+  const touch = matchMedia('(hover: none)').matches;
+  let lastY = 0, ticking = false;
+  addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { onScroll(); ticking = false; });
+  }, { passive: true });
   function onScroll() {
     const y = scrollY;
-    header.classList.toggle('is-hidden', y > lastY && y > 200);
+    if (!touch && Math.abs(y - lastY) > 6) header.classList.toggle('is-hidden', y > lastY && y > 200);
     header.classList.toggle('solid', y > 80);
-    lastY = y;
+    if (Math.abs(y - lastY) > 6 || y < 10) lastY = y;
     const mid = 30;
     header.classList.toggle('on-dark', darks.some(s => { const r = s.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; }));
     heroScroll(y);
     deliveryParallax();
   }
-  addEventListener('scroll', onScroll, { passive: true });
 
   /* ---------- hero card: tilt + scroll ---------- */
   const tilt = document.getElementById('heroTilt');
   const heroCard = document.getElementById('heroCard');
   let rx = 0, ry = 0, sy = 0;
   const applyTilt = () => { tilt.style.transform = `translateY(${sy * .25}px) rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${sy * -.02}deg)`; };
-  function heroScroll(y) { if (y < innerHeight * 1.2) { sy = y; applyTilt(); } }
+  function heroScroll(y) { if (!touch && y < innerHeight * 1.2) { sy = y; applyTilt(); } }
   if (!reduce && matchMedia('(hover: hover)').matches) {
     addEventListener('pointermove', e => {
       const nx = e.clientX / innerWidth - .5, ny = e.clientY / innerHeight - .5;
