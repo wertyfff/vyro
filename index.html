@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VYRO Cards</title>
+<meta name="description" content="VYRO — виртуальные и физические карты с управлением в одном приложении. Комиссии видны до оплаты.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;600;700&family=Unbounded:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEEDE9;
+  --ink:#0B0B0B;
+  --paper:#FFFFFF;
+  --muted:#76756F;
+  --line:rgba(11,11,11,.12);
+  --accent:#C8FF3D;
+  --display:"Unbounded","Arial Black",system-ui,sans-serif;
+  --body:"Golos Text",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --ease:cubic-bezier(.9,.03,.26,.99);
+  --ease-out:cubic-bezier(.2,.8,.2,1);
+  --gutter:clamp(16px,3vw,40px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:var(--body);
+  font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+body.is-loading{overflow:hidden}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+img,svg{display:block}
+
+.wide{font-family:var(--display);font-weight:700;letter-spacing:-.02em;text-transform:uppercase;line-height:.95}
+.label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.muted{color:var(--muted)}
+
+/* ============ LOADER ============ */
+.loader{position:fixed;inset:0;z-index:100;pointer-events:none}
+.loader__half{position:absolute;left:0;right:0;height:50.5%;background:var(--ink);transition:transform .9s var(--ease) .4s}
+.loader__half--top{top:0}
+.loader__half--bottom{bottom:0}
+.loader.done .loader__half--top{transform:translateY(-100%)}
+.loader.done .loader__half--bottom{transform:translateY(100%)}
+
+.loader__center{position:absolute;inset:0;display:grid;place-items:center;transition:opacity .4s}
+.loader__meta{transition:opacity .4s}
+.loader.done .loader__center,.loader.done .loader__meta{opacity:0}
+.loader__card{
+  position:relative;width:min(300px,64vw);aspect-ratio:1.586;
+  border:1.5px solid rgba(255,255,255,.9);border-radius:min(16px,3.4vw);overflow:hidden;
+}
+.loader__fill{position:absolute;inset:0;background:var(--paper);transform-origin:left;transform:scaleX(0)}
+.loader__chip{
+  position:absolute;left:9%;top:36%;width:13%;aspect-ratio:1.3;
+  border:1.5px solid rgba(255,255,255,.9);border-radius:4px;mix-blend-mode:difference;
+}
+.loader__mark{position:absolute;left:9%;top:11%;color:#fff;mix-blend-mode:difference;font-size:15px}
+.loader__dots{position:absolute;left:9%;bottom:12%;color:#fff;mix-blend-mode:difference;font-size:12px;letter-spacing:.2em}
+.loader__meta{
+  position:absolute;left:50%;top:calc(50% + min(300px,64vw)/3.17 + 28px);transform:translateX(-50%);
+  display:flex;gap:18px;color:#fff;white-space:nowrap;
+}
+.loader__meta b{font-variant-numeric:tabular-nums;min-width:4ch;text-align:right;font-weight:600}
+
+/* ============ HEADER ============ */
+.header{
+  position:fixed;top:0;left:0;right:0;z-index:50;
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+  padding:18px var(--gutter);transition:color .3s,background .3s, transform .5s var(--ease-out);
+}
+.header.is-hidden{transform:translateY(-100%)}
+.header.solid{background:rgba(238,237,233,.82);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.header.on-dark{color:#fff}
+.header.solid.on-dark{background:rgba(11,11,11,.78)}
+.header.solid.on-dark .btn{background:#fff;color:var(--ink)}
+.menu-btn{display:flex;align-items:center;gap:10px;justify-self:start}
+.menu-btn__icon{display:grid;grid-template-columns:repeat(2,4px);gap:3px}
+.menu-btn__icon i{width:4px;height:4px;background:currentColor;border-radius:50%}
+.logo{font-size:22px;letter-spacing:.02em}
+.header__cta{justify-self:end}
+
+.btn{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  height:48px;padding:0 26px;border-radius:999px;
+  background:var(--ink);color:#fff;overflow:hidden;isolation:isolate;
+}
+.btn::before{
+  content:"";position:absolute;inset:0;background:var(--accent);z-index:-1;
+  transform:translateY(101%);transition:transform .45s var(--ease-out);border-radius:inherit;
+}
+.btn:hover::before{transform:none}
+.btn:hover{color:var(--ink)}
+.btn--sm{height:38px;padding:0 18px}
+.btn--light{background:#fff;color:var(--ink)}
+.btn .arr{transition:transform .3s var(--ease-out)}
+.btn:hover .arr{transform:translate(2px,-2px)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+/* menu overlay */
+.menu{
+  position:fixed;inset:0;z-index:60;background:var(--ink);color:#fff;
+  display:flex;flex-direction:column;justify-content:space-between;padding:18px var(--gutter) 28px;
+  clip-path:inset(0 0 100% 0);transition:clip-path .7s var(--ease);
+}
+.menu.open{clip-path:inset(0 0 0 0)}
+.menu__top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
+.menu__close{justify-self:start;display:flex;gap:10px;align-items:center}
+.menu__links{list-style:none;display:flex;flex-direction:column;gap:8px}
+.menu__links a{
+  display:inline-flex;align-items:baseline;gap:16px;font-size:clamp(32px,6vw,84px);
+  transform:translateY(40px);opacity:0;
+  /* stagger delay applies only to the entrance; hover colour reacts at once */
+  transition:transform .6s var(--ease-out) var(--d,0s),opacity .6s var(--d,0s),color .18s ease 0s;
+}
+.menu__links a:hover{color:var(--accent)}
+.menu.open .menu__links a{transform:none;opacity:1}
+.menu.open .menu__links li:nth-child(1) a{--d:.25s}
+.menu.open .menu__links li:nth-child(2) a{--d:.3s}
+.menu.open .menu__links li:nth-child(3) a{--d:.35s}
+.menu.open .menu__links li:nth-child(4) a{--d:.4s}
+.menu.open .menu__links li:nth-child(5) a{--d:.45s}
+.menu__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--muted)}
+.menu__foot .contact{text-transform:none;letter-spacing:.02em;font-size:13px}
+.menu__foot a:hover{color:var(--accent)}
+
+/* ============ PAYMENT CARD ============ */
+.card{
+  --w:360px;
+  position:relative;width:var(--w);aspect-ratio:1.586;border-radius:calc(var(--w)*.05);
+  font-size:calc(var(--w)/24);overflow:hidden;
+  background:#0E0E0E;color:#fff;
+  box-shadow:0 1px 0 rgba(255,255,255,.08) inset, 0 40px 80px -30px rgba(0,0,0,.45), 0 12px 24px -12px rgba(0,0,0,.35);
+}
+.card::before{ /* sheen */
+  content:"";position:absolute;inset:-50%;
+  background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.10) 50%,transparent 60%);
+  transform:translateX(var(--sheen,-30%));transition:transform .2s;
+}
+.card::after{ /* subtle grain lines */
+  content:"";position:absolute;inset:0;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px);
+}
+.card--white{background:#F7F7F4;color:var(--ink);box-shadow:0 0 0 1px rgba(0,0,0,.06) inset, 0 40px 80px -30px rgba(0,0,0,.28), 0 12px 24px -12px rgba(0,0,0,.2)}
+.card--white::before{background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.8) 50%,transparent 60%)}
+.card--white::after{background:repeating-linear-gradient(90deg,rgba(0,0,0,.015) 0 1px,transparent 1px 3px)}
+.card__in{position:absolute;inset:0;padding:7.5% 8%;display:flex;flex-direction:column;justify-content:space-between;z-index:1}
+.card__row{display:flex;justify-content:space-between;align-items:center}
+.card__logo{font-family:var(--display);font-size:1.3em;font-weight:700;letter-spacing:.02em}
+.card__wave{width:1.3em;height:1.3em;opacity:.8}
+.card__chip{
+  width:2.6em;height:2em;border-radius:.35em;
+  background:linear-gradient(135deg,#d9d6cc,#a9a598 60%,#cfcabd);position:relative;
+}
+.card--black .card__chip{background:linear-gradient(135deg,#3a3a3a,#1d1d1d 60%,#333)}
+.card__chip::before,.card__chip::after{content:"";position:absolute;inset:30% 0;border-top:1px solid rgba(0,0,0,.25);border-bottom:1px solid rgba(0,0,0,.25)}
+.card__chip::after{inset:0 38%;border:0;border-left:1px solid rgba(0,0,0,.25);border-right:1px solid rgba(0,0,0,.25)}
+.card--black .card__chip::before,.card--black .card__chip::after{border-color:rgba(255,255,255,.12)}
+.card__num{font-size:.8em;letter-spacing:.22em;opacity:.75}
+.card__type{font-size:.6em;font-weight:600;letter-spacing:.14em;opacity:.6}
+
+/* ============ HERO ============ */
+.hero{position:relative;min-height:100svh;display:grid;grid-template-rows:1fr auto;padding:90px var(--gutter) 32px;overflow:hidden}
+.hero__stage{
+  position:relative;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:clamp(16px,3vw,48px);
+}
+.hero__word{font-size:clamp(28px,4.4vw,76px);opacity:0;transition:opacity .6s var(--ease)}
+.hero__word--r{text-align:right}
+.hero__word span{display:block}
+/* outline text: fill with the ground colour painted over a doubled stroke hides the font's overlapping contours */
+.hero__word .out{color:var(--bg);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill}
+.hero__cardpos{position:relative;display:grid;place-items:center}
+.hero__orbit{
+  position:absolute;width:175%;left:50%;top:50%;transform:translate(-50%,-50%);
+  overflow:visible;opacity:0;transition:opacity 1s .2s;pointer-events:none;
+}
+.hero__orbit ellipse{fill:none;stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.hero__orbit circle{fill:var(--ink)}
+.hero__grow{transform:scale(0) rotate(-10deg)}
+.hero__tilt{transform-style:preserve-3d;transition:transform .5s var(--ease-out);will-change:transform}
+.hero .card{--w:clamp(230px,27vw,440px)}
+.hero__bottom{
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:16px;
+  opacity:0;transition:opacity .6s var(--ease)
+}
+.hero__bottom .label:last-child{justify-self:end}
+
+body.ready .hero__grow{transform:none;transition:transform 1.2s var(--ease) .45s}
+body.ready .hero__word,body.ready .hero__bottom{opacity:1;transition-delay:1.65s}
+body.ready .hero__orbit{opacity:1;transition-delay:1.65s}
+
+/* ============ MARQUEE ============ */
+.marquee{border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;padding:18px 0;white-space:nowrap}
+.marquee__track{display:inline-flex;animation:marq 32s linear infinite}
+.marquee__track span{display:inline-flex;align-items:center;gap:28px;padding-right:28px;font-size:clamp(16px,1.8vw,24px)}
+.marquee__track i{width:10px;height:10px;border-radius:50%;background:var(--ink);display:inline-block}
+@keyframes marq{to{transform:translateX(-50%)}}
+
+/* ============ SECTIONS ============ */
+section{position:relative}
+.sec{padding:clamp(80px,12vw,160px) var(--gutter)}
+.sec__head{display:grid;grid-template-columns:1.3fr 1fr;gap:24px;align-items:end;margin-bottom:clamp(40px,6vw,80px)}
+.sec__title{font-size:clamp(28px,4.6vw,72px)}
+.sec__lead{max-width:420px;justify-self:end;font-size:17px}
+.idx{display:block;margin-bottom:18px}
+
+/* reveal */
+.rv{opacity:0;transform:translateY(40px);transition:opacity .9s var(--ease-out),transform .9s var(--ease-out)}
+.rv.in{opacity:1;transform:none}
+.rv-d1{transition-delay:.08s}.rv-d2{transition-delay:.16s}.rv-d3{transition-delay:.24s}
+
+/* uses */
+.uses{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line)}
+.use{
+  position:relative;padding:28px 24px 32px;min-height:300px;display:flex;flex-direction:column;justify-content:space-between;
+  border-right:1px solid var(--line);overflow:hidden;isolation:isolate;transition:color .4s;
+}
+.use:last-child{border-right:0}
+.use::before{content:"";position:absolute;inset:0;background:var(--ink);z-index:-1;transform:scaleY(0);transform-origin:bottom;transition:transform .5s var(--ease-out)}
+.use:hover{color:#fff}
+.use:hover::before{transform:none}
+.use:hover .use__ico{background:var(--accent);color:var(--ink);transform:rotate(-45deg)}
+.use__ico{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;transition:transform .5s var(--ease-out),background .3s,color .3s;background:var(--ink);color:#fff}
+.use h3{font-size:clamp(16px,1.4vw,21px);margin:14px 0 8px}
+.use p{font-size:15px;max-width:260px}
+.use:hover .muted{color:rgba(255,255,255,.6)}
+.note{margin-top:24px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.link{border-bottom:1px solid currentColor;padding-bottom:2px}
+
+/* cards switcher */
+.cards{background:var(--ink);color:#fff}
+.cards .sec__lead{color:rgba(255,255,255,.65)}
+.cards__grid{display:grid;grid-template-columns:1.1fr 1fr;gap:clamp(32px,6vw,96px);align-items:center}
+.flip{perspective:1600px;display:grid;place-items:center;min-height:clamp(260px,32vw,460px)}
+.flip__inner{position:relative;transform-style:preserve-3d;transition:transform 1s var(--ease)}
+.flip.is-white .flip__inner{transform:rotateY(180deg)}
+.flip .card{--w:clamp(260px,34vw,520px);backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.flip .card--white{position:absolute;inset:0;transform:rotateY(180deg)}
+.seg{display:inline-flex;padding:4px;border-radius:999px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);margin-bottom:36px;position:relative}
+.seg button{position:relative;z-index:1;height:40px;padding:0 22px;border-radius:999px;transition:color .4s}
+.seg button[aria-pressed=true]{color:var(--ink)}
+.seg__pill{position:absolute;top:4px;bottom:4px;left:4px;border-radius:999px;background:#fff;transition:transform .5s var(--ease-out),width .5s var(--ease-out)}
+.cards__name{font-size:clamp(34px,4.4vw,66px);margin-bottom:12px}
+.cards__tag{font-size:20px;margin-bottom:28px;color:rgba(255,255,255,.65)}
+.ticks{list-style:none;border-top:1px solid rgba(255,255,255,.15);margin-bottom:36px}
+.ticks li{display:flex;justify-content:space-between;gap:16px;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.15)}
+.ticks li span:last-child{color:rgba(255,255,255,.55);text-align:right}
+.fade-swap{transition:opacity .35s, transform .35s var(--ease-out)}
+.fade-swap.out{opacity:0;transform:translateY(10px)}
+
+/* funding */
+.fund{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,5vw,80px);align-items:start}
+.tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:28px}
+.tab{padding:14px 0;margin-right:32px;font-size:clamp(24px,3vw,44px);color:rgba(11,11,11,.22);position:relative;transition:color .3s}
+.tab[aria-selected=true]{color:var(--ink)}
+.tab::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink);transform:scaleX(0);transform-origin:left;transition:transform .5s var(--ease-out)}
+.tab[aria-selected=true]::after{transform:none}
+.panel p{font-size:18px;max-width:440px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+.chip{height:34px;padding:0 14px;border-radius:999px;box-shadow:inset 0 0 0 1px var(--line);display:inline-flex;align-items:center;font-size:14px}
+.review{background:var(--paper);border-radius:20px;padding:clamp(22px,3vw,36px);box-shadow:0 30px 60px -40px rgba(0,0,0,.3)}
+.review__tag{display:inline-block;background:var(--bg);border-radius:999px;padding:6px 12px;margin-bottom:22px}
+.review h3{font-size:22px;margin-bottom:22px}
+.amount{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:6px}
+.amount input{
+  width:100%;min-width:0;border:0;background:none;font-family:var(--display);font-size:clamp(36px,4vw,58px);font-weight:700;outline:none;color:var(--ink)
+}
+.amount select{border:0;background:var(--bg);font:inherit;font-weight:600;border-radius:999px;padding:8px 12px;cursor:pointer}
+.rline{display:flex;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--line);font-size:15px}
+.rline span:last-child{color:var(--muted);text-align:right}
+.rline--total{border:0;padding-top:20px;font-weight:700;font-size:17px}
+.rline--total span:last-child{color:var(--ink)}
+.review .btn{width:100%;margin-top:18px}
+
+/* fees */
+.fees{border-top:1px solid var(--ink)}
+.fee{display:grid;grid-template-columns:1.2fr 1fr 160px;gap:16px;padding:22px 0;border-bottom:1px solid var(--line);align-items:center;transition:padding .4s var(--ease-out),background .3s}
+.fee:hover{padding-left:12px;background:rgba(255,255,255,.5)}
+.fee b{font-weight:700;font-size:clamp(17px,1.5vw,22px)}
+.fee .tbc{justify-self:end;display:inline-flex;align-items:center;gap:8px}
+.fee .tbc::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+
+/* delivery */
+.deliv{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,5vw,80px);align-items:center}
+.ph{
+  position:relative;aspect-ratio:4/5;max-width:100%;border-radius:20px;overflow:hidden;
+  background:
+    repeating-linear-gradient(135deg,rgba(11,11,11,.06) 0 1px,transparent 1px 14px),
+    #E3E1DB;
+  display:grid;place-items:center;
+}
+.ph__label{background:var(--bg);padding:8px 14px;border-radius:999px;position:absolute;top:16px;left:16px}
+.ph{container-type:inline-size}
+.ph .card{--w:58cqw;position:absolute;transform:rotate(-8deg) translateY(var(--py,0px));transition:transform .2s linear}
+.ph .card + .card{transform:rotate(6deg) translate(12%,18%) translateY(calc(var(--py,0px)*-0.6))}
+.deliv h2{font-size:clamp(28px,4.6vw,72px);margin-bottom:24px}
+.deliv p{font-size:18px;max-width:460px;margin-bottom:32px}
+.deliv__list{list-style:none;counter-reset:d}
+.deliv__list li{display:flex;gap:16px;align-items:baseline;padding:14px 0;border-top:1px solid var(--line)}
+.deliv__list li::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:var(--ink);transform:translateY(-1px)}
+.deliv__list{margin-bottom:36px}
+
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.step{position:relative;padding-top:28px}
+.step__bar{position:absolute;top:0;left:0;right:0;height:2px;background:var(--line);overflow:hidden}
+.step__bar::after{content:"";position:absolute;inset:0;background:var(--ink);transform:scaleX(0);transform-origin:left;transition:transform 1.2s var(--ease-out)}
+.step.in .step__bar::after{transform:none}
+.step:nth-child(2) .step__bar::after{transition-delay:.25s}
+.step:nth-child(3) .step__bar::after{transition-delay:.5s}
+.step:nth-child(4) .step__bar::after{transition-delay:.75s}
+.step__n{font-size:clamp(52px,6.4vw,104px);color:var(--bg);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;margin-bottom:22px}
+.step h3{font-size:17px;margin-bottom:8px}
+
+/* security */
+.sec-dark{background:var(--ink);color:#fff;overflow:hidden}
+.secur{display:grid;grid-template-columns:1fr 1fr;gap:clamp(32px,6vw,96px);align-items:center}
+.phone{
+  width:min(300px,70vw);aspect-ratio:9/19;margin:0 auto;border-radius:44px;
+  background:#1A1A1A;box-shadow:0 0 0 1px rgba(255,255,255,.12) inset,0 0 0 8px #111, 0 0 0 9px rgba(255,255,255,.1);
+  padding:22px 16px;display:flex;flex-direction:column;gap:14px;position:relative;
+}
+.phone__notch{width:90px;height:24px;border-radius:999px;background:#000;margin:0 auto 6px}
+.phone__body{container-type:inline-size;display:flex;flex-direction:column;gap:14px}
+.phone .card{--w:100cqw;box-shadow:0 20px 40px -20px rgba(0,0,0,.8)}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:14px;border-radius:14px;background:#232323;font-size:14px}
+.sw{width:42px;height:24px;border-radius:999px;background:#3a3a3a;position:relative;transition:background .3s;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .3s var(--ease-out)}
+.sw.on{background:var(--accent)}
+.sw.on::after{transform:translateX(18px);background:var(--ink)}
+.phone .ph-line{height:10px;border-radius:6px;background:#262626}
+.secur h2{font-size:clamp(28px,4.6vw,72px);margin-bottom:32px}
+.feat{list-style:none;border-top:1px solid rgba(255,255,255,.15)}
+.feat li{display:grid;grid-template-columns:1fr auto;gap:16px;padding:20px 0;border-bottom:1px solid rgba(255,255,255,.15);font-size:18px}
+.feat li span:last-child{color:rgba(255,255,255,.5);font-size:13px}
+
+/* faq: one open at a time, smooth height via grid rows */
+.faq{max-width:980px;margin-left:auto;border-top:1px solid var(--ink)}
+.qa{border-bottom:1px solid var(--line)}
+.qa__q{
+  width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:20px;
+  padding:24px 0;font-size:clamp(17px,1.5vw,21px);font-weight:600;transition:padding .4s var(--ease-out)
+}
+.qa__q:hover{padding-left:8px}
+.pm{flex:none;width:36px;height:36px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--line);position:relative;transition:background .4s,color .4s,transform .5s var(--ease-out)}
+.pm::before,.pm::after{content:"";position:absolute;left:50%;top:50%;width:12px;height:1.5px;background:currentColor;transform:translate(-50%,-50%)}
+.pm::after{transform:translate(-50%,-50%) rotate(90deg);transition:transform .5s var(--ease-out)}
+.qa.open .pm{background:var(--ink);color:#fff;transform:rotate(180deg)}
+.qa.open .pm::after{transform:translate(-50%,-50%) rotate(0)}
+.qa__a{display:grid;grid-template-rows:0fr;transition:grid-template-rows .6s var(--ease-out)}
+.qa__a > div{overflow:hidden;min-height:0}
+.qa__a p{
+  padding:0 60px 26px 0;color:var(--muted);max-width:720px;
+  opacity:0;transform:translateY(-10px);filter:blur(4px);
+  transition:opacity .3s, transform .4s var(--ease-out), filter .3s;
+}
+.qa.open .qa__a{grid-template-rows:1fr}
+.qa.open .qa__a p{opacity:1;transform:none;filter:none;transition:opacity .5s .15s, transform .6s .15s var(--ease-out), filter .5s .15s}
+
+/* cookie consent */
+.cookie{
+  position:fixed;z-index:90;left:var(--gutter);bottom:20px;width:min(420px,calc(100% - 2*var(--gutter)));
+  background:var(--paper);color:var(--ink);border-radius:20px;padding:22px;
+  box-shadow:0 30px 60px -20px rgba(0,0,0,.35),0 0 0 1px var(--line);
+  transform:translateY(calc(100% + 40px));opacity:0;transition:transform .7s var(--ease-out),opacity .5s;
+}
+.cookie.show{transform:none;opacity:1}
+.cookie h3{font-size:15px;margin-bottom:8px}
+.cookie p{font-size:14px;color:var(--muted);margin-bottom:16px}
+.cookie__btns{display:flex;gap:8px;flex-wrap:wrap}
+.cookie .btn{height:40px;padding:0 18px;flex:1 1 auto;white-space:nowrap}
+.cookie .btn--line{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+
+/* final */
+.final{min-height:100svh;background:var(--ink);color:#fff;display:flex;flex-direction:column;justify-content:space-between;padding:clamp(80px,10vw,140px) var(--gutter) 28px;overflow:hidden}
+.final__t{font-size:clamp(44px,9.6vw,176px);line-height:.9}
+.final__t .out{color:var(--ink);-webkit-text-stroke:3px #fff;paint-order:stroke fill}
+.final__row{display:flex;justify-content:space-between;align-items:end;gap:24px;flex-wrap:wrap;margin-top:40px}
+.final__row p{font-size:18px;max-width:360px;color:rgba(255,255,255,.7)}
+.footer{border-top:1px solid rgba(255,255,255,.15);margin-top:clamp(60px,8vw,120px);padding-top:28px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:24px;font-size:14px}
+.footer h4{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:12px;font-weight:600}
+.footer ul{list-style:none;display:grid;gap:6px}
+.footer a:hover{color:var(--accent)}
+.footer__legal{color:rgba(255,255,255,.45);max-width:420px}
+.footer__bottom{grid-column:1/-1;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:rgba(255,255,255,.45);font-size:12px;padding-top:24px}
+
+/* ============ RESPONSIVE ============ */
+@media (max-width:960px){
+  .uses{grid-template-columns:1fr 1fr}
+  .use:nth-child(2){border-right:0}
+  .use:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .use{min-height:240px}
+  .cards__grid,.fund,.deliv,.secur{grid-template-columns:1fr}
+  .steps{grid-template-columns:1fr 1fr;row-gap:48px}
+  .footer{grid-template-columns:1fr 1fr}
+  .footer > div:first-child{grid-column:1/-1}
+}
+@media (max-width:720px){
+  .header__cta .btn{padding:0 12px;font-size:11px;letter-spacing:.04em}
+  .header__cta .long,.header__cta .arr{display:none}
+  .hero{padding-top:84px}
+  .hero__stage{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;justify-items:center;text-align:center;gap:28px}
+  .hero__word,.hero__word--r{text-align:center;font-size:clamp(28px,9vw,48px)}
+  .hero .card{--w:min(78vw,340px)}
+  .hero__bottom{grid-template-columns:1fr 1fr;row-gap:16px;margin-top:32px}
+  .hero__bottom .btn{grid-column:1/-1;grid-row:1;width:100%}
+  .sec__head{grid-template-columns:1fr}
+  .sec__lead{justify-self:start}
+  .uses{grid-template-columns:1fr}
+  .use{border-right:0;border-bottom:1px solid var(--line);min-height:auto;flex-direction:row;justify-content:flex-start;align-items:flex-start;gap:16px;padding:22px 4px}
+  .use__ico{width:40px;height:40px;flex:none}
+  .use h3{margin:8px 0 6px}
+  .step__n{font-size:48px;margin-bottom:14px}
+  .steps{row-gap:36px}
+  .sec{padding-top:72px;padding-bottom:72px}
+  .cookie{left:12px;right:12px;bottom:12px;width:auto;padding:16px;border-radius:16px}
+  .cookie h3{font-size:13px;margin-bottom:6px}
+  .cookie p{font-size:13px;margin-bottom:12px;line-height:1.4}
+  .cookie .btn{height:38px;padding:0 12px;font-size:11px}
+  .final{min-height:auto}
+  .hero__bottom .label{font-size:11px}
+  .fee{grid-template-columns:1fr auto;row-gap:6px}
+  .fee .muted{grid-column:1;grid-row:2}
+  .fee .tbc{grid-column:2;grid-row:1 / 3}
+  .steps{grid-template-columns:1fr}
+  .qa__a p{padding-right:0}
+  .footer{grid-template-columns:1fr}
+}
+/* touch screens have no cursor tilt, so the hero card floats on its own */
+@media (hover:none){
+  body.ready .hero .card{animation:float 6s ease-in-out 2s infinite}
+}
+@keyframes float{
+  0%,100%{transform:translateY(0) rotate(0)}
+  50%{transform:translateY(-10px) rotate(-1.5deg)}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition-duration:.01ms!important;transition-delay:0s!important}
+}
+</style>
+</head>
+<body class="is-loading">
+
+<!-- LOADER: card silhouette fills up, then the curtain splits -->
+<div class="loader" id="loader" aria-hidden="true">
+  <div class="loader__half loader__half--top"></div>
+  <div class="loader__half loader__half--bottom"></div>
+  <div class="loader__center">
+    <div class="loader__card">
+      <div class="loader__fill" id="loaderFill"></div>
+      <span class="loader__mark wide">VYRO</span>
+      <span class="loader__chip"></span>
+      <span class="loader__dots">•••• •••• •••• ••••</span>
+    </div>
+  </div>
+  <div class="loader__meta label"><span>Загрузка</span><b id="loaderPct">0%</b></div>
+</div>
+
+<!-- HEADER -->
+<header class="header" id="header">
+  <button class="menu-btn label" id="menuOpen" aria-expanded="false" aria-controls="menu">
+    <span class="menu-btn__icon"><i></i><i></i><i></i><i></i></span> Меню
+  </button>
+  <a href="#top" class="logo wide">VYRO</a>
+  <div class="header__cta"><a href="#app" class="btn btn--sm label">Скачать<span class="long">&nbsp;приложение</span> <span class="arr">↗</span></a></div>
+</header>
+
+<nav class="menu" id="menu" aria-hidden="true">
+  <div class="menu__top">
+    <button class="menu__close label" id="menuClose">✕ Закрыть</button>
+    <span class="logo wide">VYRO</span>
+    <span></span>
+  </div>
+  <ul class="menu__links">
+    <li><a class="wide" href="#cards">Карты</a></li>
+    <li><a class="wide" href="#funding">Пополнение</a></li>
+    <li><a class="wide" href="#fees">Тарифы</a></li>
+    <li><a class="wide" href="#start">Как начать</a></li>
+    <li><a class="wide" href="#faq">Помощь</a></li>
+  </ul>
+  <div class="menu__foot label"><span>Деньги без границ</span><span class="contact">ssapovalov780@gmail.com · <a href="https://t.me/kiwnt1" target="_blank" rel="noopener">Telegram @kiwnt1</a></span></div>
+</nav>
+
+<main id="top">
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero__stage">
+    <h1 class="hero__word wide"><span>Твои</span> <span>деньги.</span></h1>
+    <div class="hero__cardpos">
+      <svg class="hero__orbit" viewBox="0 0 1000 400" aria-hidden="true">
+        <ellipse cx="500" cy="200" rx="498" ry="140"/>
+        <circle r="5"><animateMotion dur="10s" repeatCount="indefinite" path="M2,200 a498,140 0 1,0 996,0 a498,140 0 1,0 -996,0"/></circle>
+      </svg>
+      <div class="hero__grow">
+        <div class="hero__tilt" id="heroTilt">
+          <div class="card card--black" id="heroCard">
+            <div class="card__in">
+              <div class="card__row"><span class="card__logo">VYRO</span>
+                <svg class="card__wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6c2 3.6 2 8.4 0 12M12 4c3 4.8 3 11.2 0 16M16 2c4 6 4 14 0 20"/></svg>
+              </div>
+              <div class="card__chip"></div>
+              <div class="card__row"><span class="card__num">•••• 2026</span><span class="card__type">VIRTUAL · PHYSICAL</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hero__word hero__word--r wide"><span class="out">Твой</span> <span>мир.</span></p>
+  </div>
+  <div class="hero__bottom">
+    <span class="label">Один аккаунт.<br>Два способа платить.</span>
+    <a href="https://t.me/kiwnt1" target="_blank" rel="noopener" class="btn label">Оформить карту <span class="arr">↗</span></a>
+    <span class="label">/2026</span>
+  </div>
+</section>
+
+<div class="marquee" aria-hidden="true">
+  <div class="marquee__track">
+    <span class="wide">Виртуальная карта <i></i> Физическая карта <i></i> Одно приложение <i></i> Понятные тарифы <i></i> Фиат и крипта <i></i></span>
+    <span class="wide">Виртуальная карта <i></i> Физическая карта <i></i> Одно приложение <i></i> Понятные тарифы <i></i> Фиат и крипта <i></i></span>
+  </div>
+</div>
+
+<!-- USES -->
+<section class="sec" id="about">
+  <div class="sec__head">
+    <div>
+      <h2 class="sec__title wide rv">Больше<br>способов<br>платить.</h2>
+    </div>
+    <p class="sec__lead rv rv-d1">VYRO — платёжный сервис. Оформи виртуальную или физическую карту и управляй ею, балансом и операциями в одном приложении.</p>
+  </div>
+  <div class="uses">
+    <article class="use rv">
+      <div class="use__ico">↗</div>
+      <div><h3 class="wide">Онлайн-покупки</h3><p class="muted">Оплата в интернет-магазинах, которые принимают карту.</p></div>
+    </article>
+    <article class="use rv rv-d1">
+      <div class="use__ico">↗</div>
+      <div><h3 class="wide">Подписки</h3><p class="muted">Регулярные платежи за поддерживаемые цифровые сервисы.</p></div>
+    </article>
+    <article class="use rv rv-d2">
+      <div class="use__ico">↗</div>
+      <div><h3 class="wide">Каждый день</h3><p class="muted">Покупки в магазинах, где доступен этот способ оплаты.</p></div>
+    </article>
+    <article class="use rv rv-d3">
+      <div class="use__ico">↗</div>
+      <div><h3 class="wide">Телефоном</h3><p class="muted">Бесконтактно — с совместимым телефоном и кошельком.</p></div>
+    </article>
+  </div>
+  <div class="note label muted"><span>Приём карты зависит от страны, магазина и устройства.</span><a href="#faq" class="link">Проверить доступность ↗</a></div>
+</section>
+
+<!-- CARDS -->
+<section class="sec cards" id="cards">
+  <div class="sec__head">
+    <div>
+      <h2 class="sec__title wide rv">Выбери<br>свою карту.</h2>
+    </div>
+    <p class="sec__lead rv rv-d1">Два дизайна, одни возможности. Виртуальная — сразу после регистрации. Физическая — с доставкой, где это доступно.</p>
+  </div>
+  <div class="cards__grid">
+    <div class="flip" id="flip">
+      <div class="flip__inner">
+        <div class="card card--black"><div class="card__in">
+          <div class="card__row"><span class="card__logo">VYRO</span><svg class="card__wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6c2 3.6 2 8.4 0 12M12 4c3 4.8 3 11.2 0 16M16 2c4 6 4 14 0 20"/></svg></div>
+          <div class="card__chip"></div>
+          <div class="card__row"><span class="card__num">•••• 0001</span><span class="card__type">BLACK</span></div>
+        </div></div>
+        <div class="card card--white"><div class="card__in">
+          <div class="card__row"><span class="card__logo">VYRO</span><svg class="card__wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6c2 3.6 2 8.4 0 12M12 4c3 4.8 3 11.2 0 16M16 2c4 6 4 14 0 20"/></svg></div>
+          <div class="card__chip"></div>
+          <div class="card__row"><span class="card__num">•••• 0002</span><span class="card__type">WHITE</span></div>
+        </div></div>
+      </div>
+    </div>
+    <div>
+      <div class="seg" role="group" aria-label="Дизайн карты">
+        <span class="seg__pill" id="segPill"></span>
+        <button class="label" aria-pressed="true" data-card="black">Black</button>
+        <button class="label" aria-pressed="false" data-card="white">White</button>
+      </div>
+      <div class="fade-swap" id="cardText">
+        <h3 class="cards__name wide" id="cardName">VYRO Black</h3>
+        <p class="cards__tag" id="cardTag">Классика в чёрном.</p>
+      </div>
+      <ul class="ticks">
+        <li><span>Формат</span><span>Виртуальная или физическая</span></li>
+        <li><span>Управление</span><span>В приложении</span></li>
+        <li><span>Выпуск и обслуживание</span><span>Тарифы в приложении</span></li>
+      </ul>
+      <a href="https://t.me/kiwnt1" target="_blank" rel="noopener" class="btn btn--light label">Выбрать эту карту <span class="arr">↗</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- FUNDING -->
+<section class="sec" id="funding">
+  <div class="sec__head">
+    <div>
+      <h2 class="sec__title wide rv">Пополняй<br>как удобно.</h2>
+    </div>
+    <p class="sec__lead rv rv-d1">Ты видишь, сколько отправляешь, сколько это стоит и сколько получишь, ещё до подтверждения.</p>
+  </div>
+  <div class="fund">
+    <div>
+      <div class="tabs" role="tablist">
+        <button class="tab wide" role="tab" aria-selected="true" aria-controls="p-fiat" id="t-fiat">Фиат</button>
+        <button class="tab wide" role="tab" aria-selected="false" aria-controls="p-crypto" id="t-crypto">Крипта</button>
+      </div>
+      <div class="panel" id="p-fiat" role="tabpanel" aria-labelledby="t-fiat">
+        <p>Пополняй доступными банковскими и платёжными способами. Комиссия каждого способа видна до оплаты.</p>
+        <div class="chips"><span class="chip">Банковский перевод</span><span class="chip">Карта</span><span class="chip">Комиссия 2%</span></div>
+      </div>
+      <div class="panel" id="p-crypto" role="tabpanel" aria-labelledby="t-crypto" hidden>
+        <p>Пополняй поддерживаемыми стейблкоинами. Выбери актив и сеть — мы заранее покажем курс, сетевой сбор и итоговую сумму.</p>
+        <div class="chips"><span class="chip">USDC</span><span class="chip">USDT</span><span class="chip">Комиссия 2%</span></div>
+      </div>
+    </div>
+    <div class="review rv">
+      <span class="review__tag label muted">Калькулятор пополнения</span>
+      <h3 class="wide">Сколько зачислим</h3>
+      <div class="amount">
+        <input type="text" inputmode="decimal" value="100" id="amount" aria-label="Сумма пополнения">
+        <select id="asset" aria-label="Валюта"><option>USD</option><option>EUR</option><option>USDC</option><option>USDT</option></select>
+      </div>
+      <div class="rline"><span>Сумма пополнения</span><span id="cSum">100,00 USD</span></div>
+      <div class="rline"><span>Комиссия сервиса · 2%</span><span id="cFee">−2,00 USD</span></div>
+      <div class="rline"><span>Курс</span><span id="cRate">Без конвертации</span></div>
+      <div class="rline rline--total"><span>Зачислим на баланс</span><span id="cGet">98,00 USD</span></div>
+      <a href="https://t.me/kiwnt1" target="_blank" rel="noopener" class="btn label">Пополнить в приложении <span class="arr">↗</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- FEES -->
+<section class="sec" id="fees" style="padding-top:0">
+  <div class="sec__head">
+    <div>
+      <h2 class="sec__title wide rv">Без сюрпризов.<br>Только понятные<br>тарифы.</h2>
+    </div>
+    <p class="sec__lead rv rv-d1">Комиссия за пополнение — 2%. Стоимость каждой операции видна в приложении до оплаты.</p>
+  </div>
+  <div class="fees">
+    <div class="fee rv"><b>Выпуск виртуальной карты</b><span class="muted">Сразу после регистрации</span><span class="tbc label">Доступно</span></div>
+    <div class="fee rv"><b>Физическая карта и доставка</b><span class="muted">Доставка с трекингом</span><span class="tbc label">Доступно</span></div>
+    <div class="fee rv"><b>Обслуживание</b><span class="muted">Условия в приложении</span><span class="tbc label">Доступно</span></div>
+    <div class="fee rv"><b>Пополнение фиатом</b><span class="muted">Банковский перевод, карта</span><span class="tbc label">2%</span></div>
+    <div class="fee rv"><b>Пополнение криптой</b><span class="muted">USDC, USDT</span><span class="tbc label">2%</span></div>
+    <div class="fee rv"><b>Оплата в другой валюте</b><span class="muted">Курс виден до оплаты</span><span class="tbc label">Доступно</span></div>
+  </div>
+</section>
+
+<!-- DELIVERY -->
+<section class="sec" id="app" style="padding-top:0">
+  <div class="deliv">
+    <div class="ph rv" id="ph">
+      <span class="ph__label label muted">Фото · упаковка</span>
+      <div class="card card--black"><div class="card__in"><div class="card__row"><span class="card__logo">VYRO</span></div><div class="card__chip"></div><div class="card__row"><span class="card__num">•••• 0001</span></div></div></div>
+      <div class="card card--white"><div class="card__in"><div class="card__row"><span class="card__logo">VYRO</span></div><div class="card__chip"></div><div class="card__row"><span class="card__num">•••• 0002</span></div></div></div>
+    </div>
+    <div>
+      <h2 class="wide rv">Твоя карта.<br>С доставкой.</h2>
+      <p class="rv rv-d1">Выбери карту, оформи заказ и следи за доставкой в приложении. Страны, сроки и стоимость доставки видны до оформления.</p>
+      <ul class="deliv__list rv rv-d2">
+        <li>Виртуальная карта — пользуйся сразу</li>
+        <li>Физическая карта — доставка с трекингом</li>
+        <li>Активация в приложении после получения</li>
+      </ul>
+      <a href="https://t.me/kiwnt1" target="_blank" rel="noopener" class="btn label rv rv-d3" id="appLink">Скачать приложение <span class="arr">↗</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- STEPS -->
+<section class="sec" id="start" style="padding-top:0">
+  <div class="sec__head">
+    <div>
+      <h2 class="sec__title wide rv">Четыре шага<br>до карты.</h2>
+    </div>
+  </div>
+  <div class="steps">
+    <div class="step rv"><span class="step__bar"></span><div class="step__n wide">01</div><h3 class="wide">Аккаунт</h3><p class="muted">Зарегистрируйся в приложении.</p></div>
+    <div class="step rv rv-d1"><span class="step__bar"></span><div class="step__n wide">02</div><h3 class="wide">Проверка</h3><p class="muted">Пройди проверки, которые нужны в твоей стране.</p></div>
+    <div class="step rv rv-d2"><span class="step__bar"></span><div class="step__n wide">03</div><h3 class="wide">Карта</h3><p class="muted">Виртуальная, физическая — или обе.</p></div>
+    <div class="step rv rv-d3"><span class="step__bar"></span><div class="step__n wide">04</div><h3 class="wide">Пополнение</h3><p class="muted">Пополни баланс и плати там, где принимают карту.</p></div>
+  </div>
+</section>
+
+<!-- SECURITY -->
+<section class="sec sec-dark" id="security">
+  <div class="secur">
+    <div class="phone rv">
+      <div class="phone__notch"></div>
+      <div class="phone__body">
+        <div class="card card--black">
+          <div class="card__in">
+            <div class="card__row"><span class="card__logo">VYRO</span>
+              <svg class="card__wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6c2 3.6 2 8.4 0 12M12 4c3 4.8 3 11.2 0 16M16 2c4 6 4 14 0 20"/></svg>
+            </div>
+            <div class="card__chip"></div>
+            <div class="card__row"><span class="card__num">•••• 2026</span><span class="card__type">VIRTUAL · PHYSICAL</span></div>
+          </div>
+        </div>
+        <div class="toggle-row"><span>Заморозить карту</span><span class="sw" id="sw1"></span></div>
+        <div class="toggle-row"><span>Онлайн-платежи</span><span class="sw on"></span></div>
+        <div class="toggle-row"><span>Уведомления</span><span class="sw on"></span></div>
+        <div class="ph-line" style="width:70%"></div>
+        <div class="ph-line" style="width:45%"></div>
+      </div>
+    </div>
+    <div>
+      <h2 class="wide rv">Твои деньги<br>под&nbsp;контролем.</h2>
+      <ul class="feat rv rv-d1">
+        <li><span>Проверка личности</span><span>KYC</span></li>
+        <li><span>Защищённый вход</span><span>2FA</span></li>
+        <li><span>Уведомления об операциях</span><span>Push</span></li>
+        <li><span>Заморозка карты в одно касание</span><span>App</span></li>
+        <li><span>Поддержка живыми людьми</span><span>Чат и Telegram</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="sec" id="faq">
+  <div class="sec__head">
+    <div>
+      <h2 class="sec__title wide rv">Вопросы.</h2>
+    </div>
+  </div>
+  <div class="faq" id="faqList">
+    <div class="qa"><button class="qa__q" id="q1" aria-expanded="false" aria-controls="a1">В каких странах доступен VYRO?<span class="pm"></span></button>
+      <div class="qa__a" id="a1" role="region" aria-labelledby="q1"><div><p>Зависит от страны проживания. Выпуск карты, пополнение и доставку мы проверяем отдельно для каждой страны — полный список появится на странице доступности.</p></div></div></div>
+    <div class="qa"><button class="qa__q" id="q2" aria-expanded="false" aria-controls="a2">Кто может открыть аккаунт?<span class="pm"></span></button>
+      <div class="qa__a" id="a2" role="region" aria-labelledby="q2"><div><p>Совершеннолетние, которые прошли проверку личности в поддерживаемой стране. Точные требования к возрасту и резидентству будут в условиях обслуживания.</p></div></div></div>
+    <div class="qa"><button class="qa__q" id="q3" aria-expanded="false" aria-controls="a3">Какие криптовалюты и сети поддерживаются?<span class="pm"></span></button>
+      <div class="qa__a" id="a3" role="region" aria-labelledby="q3"><div><p>Мы делаем ставку на стейблкоины. Список активов и сетей будет в приложении перед каждым пополнением. Перевод в неподдерживаемую сеть может привести к потере средств.</p></div></div></div>
+    <div class="qa"><button class="qa__q" id="q4" aria-expanded="false" aria-controls="a4">Как считается комиссия за пополнение?<span class="pm"></span></button>
+      <div class="qa__a" id="a4" role="region" aria-labelledby="q4"><div><p>Комиссия сервиса, сетевой сбор (если есть) и курс конвертации показываются отдельно вместе с итоговой суммой — до того, как ты подтвердишь операцию.</p></div></div></div>
+    <div class="qa"><button class="qa__q" id="q5" aria-expanded="false" aria-controls="a5">Как заказать физическую карту?<span class="pm"></span></button>
+      <div class="qa__a" id="a5" role="region" aria-labelledby="q5"><div><p>В приложении: выбери дизайн, проверь доставку в свою страну, цену и сроки, оформи заказ и следи за ним.</p></div></div></div>
+    <div class="qa"><button class="qa__q" id="q6" aria-expanded="false" aria-controls="a6">Платёж отклонён. Что делать?<span class="pm"></span></button>
+      <div class="qa__a" id="a6" role="region" aria-labelledby="q6"><div><p>Проверь баланс и статус карты в приложении. Если всё в порядке, напиши в поддержку из приложения — мы объясним причину.</p></div></div></div>
+  </div>
+</section>
+
+<!-- FINAL -->
+<section class="final">
+  <h2 class="final__t wide rv">Платить<br><span class="out">стало</span><br>проще.</h2>
+  <div class="final__row">
+    <p class="rv">Одно приложение. Понятные тарифы. Карты, созданные для тебя.</p>
+    <a href="https://t.me/kiwnt1" target="_blank" rel="noopener" class="btn btn--light label rv rv-d1">Начать <span class="arr">↗</span></a>
+  </div>
+  <footer class="footer">
+    <div>
+      <div class="logo wide" style="margin-bottom:14px">VYRO</div>
+      <p class="footer__legal">Выпуск карт зависит от соответствия требованиям, доступности и применимых условий. Данные юрлица, лицензии и эмитента карт появятся здесь после подтверждения.</p>
+    </div>
+    <div><h4>Продукт</h4><ul><li><a href="#cards">Карты</a></li><li><a href="#funding">Пополнение</a></li><li><a href="#fees">Тарифы</a></li><li><a href="#faq">Доступность</a></li></ul></div>
+    <div><h4>Документы</h4><ul><li><a href="#">Условия</a></li><li><a href="#">Конфиденциальность</a></li><li><a href="#">Условия выпуска карт</a></li><li><a href="#">Правила крипто-операций</a></li></ul></div>
+    <div><h4>Поддержка</h4><ul><li><a href="#faq">Центр помощи</a></li><li>ssapovalov780@gmail.com</li><li><a href="https://t.me/kiwnt1" target="_blank" rel="noopener">Telegram @kiwnt1</a></li></ul></div>
+    <div class="footer__bottom"><span>© 2026 VYRO</span><span>Деньги без границ</span></div>
+  </footer>
+</section>
+
+</main>
+
+<div class="cookie" id="cookie" role="dialog" aria-labelledby="cookieTitle" aria-live="polite">
+  <h3 class="wide" id="cookieTitle">Мы используем cookie</h3>
+  <p>Cookie помогают сайту работать и показывают нам, как его улучшить. Продолжая, ты соглашаешься с политикой конфиденциальности.</p>
+  <div class="cookie__btns">
+    <button class="btn label" type="button" data-cookie="all">Принять</button>
+    <button class="btn btn--line label" type="button" data-cookie="essential">Только необходимые</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const body = document.body;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- every reload starts from the top, loader included ---------- */
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  scrollTo(0, 0);
+  addEventListener('beforeunload', () => scrollTo(0, 0));
+  addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
+
+  /* ---------- loader ---------- */
+  const loader = document.getElementById('loader');
+  const fill = document.getElementById('loaderFill');
+  const pct = document.getElementById('loaderPct');
+  let progress = 0, target = 70, loaded = false, last = performance.now();
+
+  function tick(now = performance.now()) {
+    // time-based, so a throttled tab can't stall it: creep to 70% while loading, then run to 100%
+    const dt = Math.min((now - last) / 1000, .25);
+    last = now;
+    const speed = loaded ? 75 : 35; // % per second
+    if (progress < target) progress = Math.min(target, progress + speed * dt);
+    fill.style.transform = `scaleX(${progress / 100})`;
+    pct.textContent = Math.floor(progress) + '%';
+    if (progress >= 100) return finish();
+    if (!loaderDone) requestAnimationFrame(tick);
+  }
+  let loaderDone = false, showCookie = null;
+  function finish() {
+    if (loaderDone) return;
+    loaderDone = true;
+    progress = 100;
+    fill.style.transform = 'scaleX(1)';
+    pct.textContent = '100%';
+    if (showCookie) showCookie();
+    loader.classList.add('done');
+    body.classList.add('ready');
+    setTimeout(() => body.classList.remove('is-loading'), 1100);
+    setTimeout(() => loader.remove(), 1500);
+  }
+  if (document.readyState === 'complete') { loaded = true; target = 100; }
+  addEventListener('load', () => { loaded = true; target = 100; });
+  if (reduce) { progress = 99; loaded = true; target = 100; }
+  requestAnimationFrame(tick);
+  setTimeout(finish, 8000); // never keep anyone on the loader if load hangs
+
+  /* ---------- menu ---------- */
+  const menu = document.getElementById('menu');
+  const openBtn = document.getElementById('menuOpen');
+  const setMenu = (open) => {
+    menu.classList.toggle('open', open);
+    menu.setAttribute('aria-hidden', !open);
+    openBtn.setAttribute('aria-expanded', open);
+    body.style.overflow = open ? 'hidden' : '';
+  };
+  openBtn.onclick = () => setMenu(true);
+  document.getElementById('menuClose').onclick = () => setMenu(false);
+  menu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => setMenu(false)));
+  addEventListener('keydown', e => e.key === 'Escape' && setMenu(false));
+
+  /* ---------- header: hide on scroll down, invert over dark ---------- */
+  const header = document.getElementById('header');
+  const darks = [...document.querySelectorAll('.cards, .sec-dark, .final')];
+  let lastY = 0;
+  function onScroll() {
+    const y = scrollY;
+    header.classList.toggle('is-hidden', y > lastY && y > 200);
+    header.classList.toggle('solid', y > 80);
+    lastY = y;
+    const mid = 30;
+    header.classList.toggle('on-dark', darks.some(s => { const r = s.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; }));
+    heroScroll(y);
+    deliveryParallax();
+  }
+  addEventListener('scroll', onScroll, { passive: true });
+
+  /* ---------- hero card: tilt + scroll ---------- */
+  const tilt = document.getElementById('heroTilt');
+  const heroCard = document.getElementById('heroCard');
+  let rx = 0, ry = 0, sy = 0;
+  const applyTilt = () => { tilt.style.transform = `translateY(${sy * .25}px) rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${sy * -.02}deg)`; };
+  function heroScroll(y) { if (y < innerHeight * 1.2) { sy = y; applyTilt(); } }
+  if (!reduce && matchMedia('(hover: hover)').matches) {
+    addEventListener('pointermove', e => {
+      const nx = e.clientX / innerWidth - .5, ny = e.clientY / innerHeight - .5;
+      ry = nx * 18; rx = -ny * 14;
+      heroCard.style.setProperty('--sheen', `${nx * 60}%`);
+      applyTilt();
+    });
+  }
+
+  /* ---------- delivery parallax ---------- */
+  const ph = document.getElementById('ph');
+  function deliveryParallax() {
+    const r = ph.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) return;
+    const p = (r.top + r.height / 2 - innerHeight / 2) / innerHeight;
+    ph.style.setProperty('--py', `${p * 60}px`);
+  }
+
+  /* ---------- reveal ---------- */
+  const io = new IntersectionObserver(entries => entries.forEach(en => {
+    if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+  }), { threshold: .15, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.rv').forEach(el => io.observe(el));
+
+  /* ---------- card switcher ---------- */
+  const flip = document.getElementById('flip');
+  const pill = document.getElementById('segPill');
+  const segBtns = document.querySelectorAll('.seg button');
+  const cardText = document.getElementById('cardText');
+  const copy = {
+    black: ['VYRO Black', 'Классика в чёрном.'],
+    white: ['VYRO White', 'Простота в каждой детали.']
+  };
+  function placePill(btn) { pill.style.width = btn.offsetWidth + 'px'; pill.style.transform = `translateX(${btn.offsetLeft - 4}px)`; }
+  segBtns.forEach(btn => btn.addEventListener('click', () => {
+    const kind = btn.dataset.card;
+    segBtns.forEach(b => b.setAttribute('aria-pressed', b === btn));
+    placePill(btn);
+    flip.classList.toggle('is-white', kind === 'white');
+    cardText.classList.add('out');
+    setTimeout(() => {
+      document.getElementById('cardName').textContent = copy[kind][0];
+      document.getElementById('cardTag').textContent = copy[kind][1];
+      cardText.classList.remove('out');
+    }, 300);
+  }));
+  const fitPill = () => placePill(document.querySelector('.seg button[aria-pressed=true]'));
+  fitPill(); addEventListener('resize', fitPill); document.fonts && document.fonts.ready.then(fitPill);
+
+  /* ---------- funding tabs ---------- */
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => {
+      const on = x === t;
+      x.setAttribute('aria-selected', on);
+      document.getElementById(x.getAttribute('aria-controls')).hidden = !on;
+    });
+    asset.value = t.id === 't-crypto' ? 'USDC' : 'USD';
+    calc();
+  }));
+
+  /* ---------- top-up calculator: 2% service fee ---------- */
+  const FEE = 0.02;
+  const amount = document.getElementById('amount');
+  const asset = document.getElementById('asset');
+  // stablecoins are credited to the USD balance 1:1
+  const creditCur = { USD: 'USD', EUR: 'EUR', USDC: 'USD', USDT: 'USD' };
+  const money = (n, cur) => n.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + cur;
+  function calc() {
+    const sum = parseFloat(amount.value.replace(',', '.')) || 0;
+    const cur = asset.value, out = creditCur[cur];
+    const fee = sum * FEE;
+    document.getElementById('cSum').textContent = money(sum, cur);
+    document.getElementById('cFee').textContent = '−' + money(fee, cur);
+    document.getElementById('cRate').textContent = cur === out ? 'Без конвертации' : `1 ${cur} = 1 ${out}`;
+    document.getElementById('cGet').textContent = money(sum - fee, out);
+  }
+  amount.addEventListener('input', () => {
+    // digits and a single decimal separator, max 2 decimals
+    let v = amount.value.replace(/[^\d.,]/g, '').replace(',', '.');
+    const [int, ...rest] = v.split('.');
+    v = rest.length ? int + '.' + rest.join('').slice(0, 2) : int;
+    amount.value = v.slice(0, 12);
+    calc();
+  });
+  asset.addEventListener('change', calc);
+  calc();
+
+  /* ---------- cookie consent ---------- */
+  const cookie = document.getElementById('cookie');
+  let consent = null;
+  try { consent = localStorage.getItem('vyro-cookie'); } catch (e) {}
+  cookie.querySelectorAll('[data-cookie]').forEach(b => b.addEventListener('click', () => {
+    try { localStorage.setItem('vyro-cookie', b.dataset.cookie); } catch (e) {}
+    cookie.classList.remove('show');
+  }));
+  showCookie = () => { if (!consent) setTimeout(() => cookie.classList.add('show'), 1800); };
+  if (loaderDone) showCookie();
+
+  /* ---------- faq: opening one closes the rest ---------- */
+  const qas = document.querySelectorAll('.qa');
+  qas.forEach(qa => qa.querySelector('.qa__q').addEventListener('click', () => {
+    const willOpen = !qa.classList.contains('open');
+    qas.forEach(o => {
+      const on = o === qa && willOpen;
+      o.classList.toggle('open', on);
+      o.querySelector('.qa__q').setAttribute('aria-expanded', on);
+    });
+  }));
+
+  /* ---------- phone toggle demo ---------- */
+  const sw1 = document.getElementById('sw1');
+  setInterval(() => sw1.classList.toggle('on'), 2600);
+})();
+</script>
+</body>
+</html>
